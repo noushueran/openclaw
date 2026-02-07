@@ -169,6 +169,14 @@ const entries: SubCliEntry[] = [
     },
   },
   {
+    name: "whatsapp",
+    description: "WhatsApp utilities",
+    register: async (program) => {
+      const mod = await import("../whatsapp-cli.js");
+      mod.registerWhatsAppCli(program);
+    },
+  },
+  {
     name: "pairing",
     description: "Pairing helpers",
     register: async (program) => {

@@ -100,6 +100,16 @@ export type WhatsAppConfig = {
   debounceMs?: number;
   /** Heartbeat visibility settings for this channel. */
   heartbeat?: ChannelHeartbeatVisibilityConfig;
+  /**
+   * Enable persistent storage of all WhatsApp messages to SQLite database (default: false).
+   * WARNING: This stores ALL messages locally. Consider privacy implications.
+   */
+  enableHistoryStorage?: boolean;
+  /**
+   * Path to SQLite database for message history storage.
+   * Default: ~/.openclaw/whatsapp-history.sqlite
+   */
+  historyStorePath?: string;
 };
 
 export type WhatsAppAccountConfig = {
@@ -168,4 +178,14 @@ export type WhatsAppAccountConfig = {
   debounceMs?: number;
   /** Heartbeat visibility settings for this account. */
   heartbeat?: ChannelHeartbeatVisibilityConfig;
+  /**
+   * Enable persistent storage of all WhatsApp messages to SQLite database (default: false).
+   * WARNING: This stores ALL messages locally. Consider privacy implications.
+   */
+  enableHistoryStorage?: boolean;
+  /**
+   * Path to SQLite database for message history storage.
+   * Default: ~/.openclaw/whatsapp-history.sqlite
+   */
+  historyStorePath?: string;
 };

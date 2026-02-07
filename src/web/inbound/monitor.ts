@@ -21,6 +21,7 @@ import {
 } from "./extract.js";
 import { downloadInboundMedia } from "./media.js";
 import { createWebSendApi } from "./send-api.js";
+import { WhatsAppHistoryStore } from "../history-store.js";
 
 export async function monitorWebInbox(options: {
   verbose: boolean;
@@ -34,6 +35,10 @@ export async function monitorWebInbox(options: {
   debounceMs?: number;
   /** Optional debounce gating predicate. */
   shouldDebounce?: (msg: WebInboundMessage) => boolean;
+  /** Enable persistent message history storage to SQLite (default: false). */
+  enableHistoryStorage?: boolean;
+  /** Path to SQLite database for history storage. */
+  historyStorePath?: string;
 }) {
   const inboundLogger = getChildLogger({ module: "web-inbound" });
   const inboundConsoleLog = createSubsystemLogger("gateway/channels/whatsapp").child("inbound");
@@ -42,6 +47,20 @@ export async function monitorWebInbox(options: {
   });
   await waitForWaConnection(sock);
   const connectedAtMs = Date.now();
+
+  // Initialize history storage if enabled
+  let historyStore: WhatsAppHistoryStore | null = null;
+  if (options.enableHistoryStorage) {
+    try {
+      historyStore = new WhatsAppHistoryStore(options.historyStorePath);
+      historyStore.initialize();
+      inboundConsoleLog.info("WhatsApp history storage enabled");
+    } catch (err) {
+      inboundConsoleLog.error(
+        `Failed to initialize history storage: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  }
 
   let onCloseResolve: ((reason: WebListenerCloseReason) => void) | null = null;
   const onClose = new Promise<WebListenerCloseReason>((resolve) => {
@@ -327,6 +346,35 @@ export async function monitorWebInbox(options: {
         mediaPath,
         mediaType,
       };
+
+      // Persist message to history storage if enabled
+      if (historyStore && id) {
+        try {
+          historyStore.storeMessage({
+            messageId: id,
+            conversationJid: remoteJid,
+            chatType: group ? "group" : "direct",
+            senderJid: participantJid ?? null,
+            senderE164,
+            senderName,
+            body,
+            timestamp: timestamp ?? Date.now(),
+            isFromMe: Boolean(msg.key?.fromMe),
+            replyToId: replyContext?.id,
+            mediaPath,
+            mediaType,
+            location,
+            rawMessage: msg,
+            accountId: access.resolvedAccountId,
+            displayName: group ? groupSubject : undefined,
+            groupParticipants,
+          });
+        } catch (err) {
+          // Log but don't fail message processing
+          logVerbose(`Failed to store message in history: ${String(err)}`);
+        }
+      }
+
       try {
         const task = Promise.resolve(debouncer.enqueue(inboundMessage));
         void task.catch((err) => {
@@ -391,6 +439,14 @@ export async function monitorWebInbox(options: {
         sock.ws?.close();
       } catch (err) {
         logVerbose(`Socket close failed: ${String(err)}`);
+      }
+      // Close history store if initialized
+      if (historyStore) {
+        try {
+          historyStore.close();
+        } catch (err) {
+          logVerbose(`History store close failed: ${String(err)}`);
+        }
       }
     },
     onClose,
